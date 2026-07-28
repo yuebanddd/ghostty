@@ -1,0 +1,91 @@
+name: GTTY CI
+
+on:
+  pull_request:
+    branches:
+      - release
+  push:
+    branches:
+      - release
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gtty-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ZIG_VERSION: 0.16.0
+
+jobs:
+  policy:
+    name: Workflow policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out GTTY
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate GTTY workflow ownership
+        run: bash scripts/ci/validate-workflows.sh
+
+  rust:
+    name: Rust checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out GTTY
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Run Rust checks when the GTTY workspace exists
+        shell: bash
+        run: |
+          if [[ ! -f Cargo.toml ]]; then
+            echo "No root Cargo workspace yet; Rust checks are intentionally skipped."
+            exit 0
+          fi
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
+
+  linux:
+    name: Linux build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out GTTY
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+      - name: Check Zig formatting
+        run: nix develop -c zig fmt --check .
+      - name: Run Zig tests
+        run: nix develop -c zig build test
+      - name: Build Linux release binary
+        run: nix develop -c zig build -Doptimize=ReleaseFast
+      - name: Verify Linux output
+        run: test -x zig-out/bin/ghostty
+
+  macos:
+    name: macOS build and test
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Check out GTTY
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - name: Report Apple toolchain
+        run: xcodebuild -version
+      - name: Check Zig formatting
+        run: zig fmt --check .
+      - name: Run Zig tests
+        run: zig build test -Demit-macos-app=false
+      - name: Build macOS release app
+        run: zig build -Doptimize=ReleaseFast
+      - name: Verify macOS output
+        run: test -d zig-out/Ghostty.app
