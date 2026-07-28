@@ -1,0 +1,154 @@
+name: GTTY Release
+
+on:
+  push:
+    tags:
+      - gtty-v*
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gtty-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ZIG_VERSION: 0.16.0
+
+jobs:
+  policy:
+    name: Release policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+    steps:
+      - name: Check out GTTY
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate GTTY workflow ownership
+        run: bash scripts/ci/validate-workflows.sh
+      - id: release
+        name: Resolve release mode
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            if [[ ! "${GITHUB_REF_NAME}" =~ ^gtty-v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "Invalid GTTY release tag: ${GITHUB_REF_NAME}" >&2
+              exit 1
+            fi
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Manual dispatch is a dry run; artifacts will not be published as a GitHub Release."
+          fi
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    needs: policy
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    steps:
+      - name: Check out GTTY
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+      - name: Build Linux release
+        run: nix develop -c zig build -Doptimize=ReleaseFast
+      - name: Package unsigned Linux build
+        shell: bash
+        run: |
+          artifact="gtty-linux-${{ matrix.arch }}-unsigned.tar.gz"
+          tar -C zig-out -czf "$artifact" .
+          test -s "$artifact"
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: gtty-linux-${{ matrix.arch }}-unsigned
+          path: gtty-linux-${{ matrix.arch }}-unsigned.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    name: macOS ${{ matrix.arch }}
+    needs: policy
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            arch: arm64
+          - runner: macos-26-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    steps:
+      - name: Check out GTTY
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - name: Build macOS release app
+        run: zig build -Doptimize=ReleaseFast
+      - name: Package unsigned macOS build
+        shell: bash
+        run: |
+          artifact="gtty-macos-${{ matrix.arch }}-unsigned.zip"
+          ditto -c -k --sequesterRsrc --keepParent zig-out/Ghostty.app "$artifact"
+          test -s "$artifact"
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: gtty-macos-${{ matrix.arch }}-unsigned
+          path: gtty-macos-${{ matrix.arch }}-unsigned.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish unsigned preview
+    if: needs.policy.outputs.publish == 'true'
+    needs:
+      - policy
+      - linux
+      - macos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: gtty-*-unsigned
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum gtty-*-unsigned.* > SHA256SUMS
+          cat SHA256SUMS
+      - name: Publish GTTY prerelease
+        uses: softprops/action-gh-release@v3.0.2
+        with:
+          name: GTTY ${{ github.ref_name }} (unsigned preview)
+          body: |
+            This is an unsigned GTTY preview build for macOS and Linux.
+
+            macOS artifacts are not notarized. Linux artifacts are not signed.
+            Verify downloads with `SHA256SUMS`. Signing and notarization will be
+            added in a later release milestone.
+          files: dist/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          prerelease: true
+          make_latest: false
