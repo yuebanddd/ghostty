@@ -29,6 +29,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate GTTY workflow ownership
         run: bash scripts/ci/validate-workflows.sh
+      - name: Validate release helper scripts
+        shell: bash
+        run: |
+          bash -n scripts/release/*.sh
+          bash scripts/release/test-resolve-version.sh
 
   rust:
     name: Rust checks

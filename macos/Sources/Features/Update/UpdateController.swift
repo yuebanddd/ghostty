@@ -9,6 +9,7 @@ import Combine
 /// initialization, starting the updater, and provides the check for updates action.
 class UpdateController {
     private(set) var updater: SPUUpdater
+    private(set) var updatesEnabled: Bool
     private let userDriver: UpdateDriver
     private var installCancellable: AnyCancellable?
 
@@ -21,9 +22,17 @@ class UpdateController {
         installCancellable != nil
     }
 
+    /// True when the updater is enabled and able to perform a manual check.
+    var canCheckForUpdates: Bool {
+        updatesEnabled && updater.canCheckForUpdates
+    }
+
     /// Initialize a new update controller.
     init() {
         let hostBundle = Bundle.main
+        self.updatesEnabled =
+            hostBundle.object(forInfoDictionaryKey: "GTTYUpdatesEnabled") as? Bool
+            ?? true
         self.userDriver = UpdateDriver(
             viewModel: .init(),
             hostBundle: hostBundle)
@@ -44,6 +53,8 @@ class UpdateController {
     /// This must be called before the updater can check for updates. If starting fails,
     /// the error will be shown to the user.
     func startUpdater() {
+        guard updatesEnabled else { return }
+
         do {
             try updater.start()
         } catch {
@@ -92,6 +103,8 @@ class UpdateController {
     ///
     /// This is typically connected to a menu item action.
     @objc func checkForUpdates() {
+        guard updatesEnabled else { return }
+
         // If we're already idle, then just check for updates immediately.
         if viewModel.state == .idle {
             updater.checkForUpdates()
@@ -116,7 +129,7 @@ class UpdateController {
     /// - Returns: Whether the menu item should be enabled
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(checkForUpdates) {
-            return updater.canCheckForUpdates
+            return canCheckForUpdates
         }
         return true
     }

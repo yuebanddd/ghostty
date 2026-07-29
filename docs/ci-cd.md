@@ -30,29 +30,75 @@ GTTY CI runs on:
 - pushes to `release`;
 - explicit manual dispatch.
 
-The Linux job uses `ubuntu-24.04` with Nix and no Cachix account. The
-macOS job uses the GitHub-hosted `macos-26` arm64 runner. Rust checks activate
-automatically after a root Cargo workspace is added.
+The Linux CI job uses `ubuntu-24.04` with Nix and no Cachix account. The
+macOS CI job uses the GitHub-hosted `macos-26` arm64 runner. Locked Rust
+formatting, lint, unit, and integration checks run for the GTTY workspace.
 
 ## Release triggers and artifacts
 
-`release.yml` runs only when:
+`release.yml` runs when:
 
+- any pull request targets `release`;
 - a `gtty-v*` tag is pushed; or
 - a maintainer starts a manual dispatch.
 
-A manual dispatch is a dry run: it builds downloadable workflow artifacts but
-does not create a GitHub Release. A valid semantic tag such as `gtty-v0.1.0`
-builds:
+Every pull request builds and verifies all four installers using an internal
+`0.0.0-pr.<number>` version. Running the installer gate for every PR prevents
+new build inputs from bypassing packaging checks as the upstream source tree
+evolves. It uploads short-lived workflow artifacts but cannot create a GitHub
+Release.
 
-- Linux x86_64 and aarch64 tarballs;
-- macOS arm64 and x86_64 zip archives;
+A manual dispatch from `release` is a dry run: it builds the same verified
+installers as a tagged release and exposes them as downloadable workflow
+artifacts, but does not create a GitHub Release. A valid semantic tag such as
+`gtty-v0.1.0` must point to a commit contained in `release` and builds:
+
+- Ubuntu 24.04-compatible Debian packages for amd64 and arm64;
+- macOS disk images for Apple Silicon and Intel;
 - `SHA256SUMS`.
 
-Until signing is configured, filenames contain `unsigned` and GitHub Releases
-are marked as prereleases. No Apple Developer ID, notarization, Linux package
-signature, Snap, Flatpak, Homebrew, Sentry, Cachix account, or upstream release
-credential is used.
+The Debian package installs the terminal as `ghostty`, adds `gtty` as the GTTY
+command, and installs the `gttyd` local daemon. Because it owns the same
+terminal resources, it declares that it conflicts with and replaces an
+installed `ghostty` Debian package. It also carries its own
+`gtk4-layer-shell` runtime under `/usr/lib/gtty`; Ubuntu 24.04 does not provide
+that GTK4 library, so the terminal uses a package-relative RPATH and requires no
+third-party apt repository.
+
+Linux packaging first generates Ghostty's official-format source tarball. That
+tarball contains the precompiled Blueprint GTK resources required by downstream
+packagers; compiling a raw Git checkout would require a newer
+`blueprint-compiler` than Ubuntu 24.04 provides.
+
+The macOS disk image contains `GTTY.app`, an `Applications` shortcut, and embeds
+`gttyd` in the application bundle. Packaging assigns the main app and embedded
+bundles GTTY-owned identifiers under `com.yuebanddd.gtty`, and stamps the
+semantic release's numeric version into the app metadata before signing. The
+unsigned preview preserves the Xcode entitlements and hardened-runtime flags,
+while disabling Ghostty's upstream Sparkle feed and incompatible Dock tile
+plugin until GTTY-owned replacements exist.
+
+Until Developer ID signing and notarization are configured, macOS filenames
+contain `unsigned`, the app uses an ad-hoc signature, and GitHub Releases are
+marked as prereleases. Linux packages are also unsigned. No Apple Developer ID,
+Linux package signature, Snap, Flatpak, Homebrew, Sentry, Cachix account, or
+upstream release credential is used.
+
+## Creating a release
+
+1. Merge a fully reviewed change into `release`.
+2. Run `GTTY Release` manually on `release` with the intended semantic version.
+3. Download and install the workflow artifacts on the target machines if an
+   additional hands-on check is needed.
+4. Create and push `gtty-v<version>` at the same `release` commit.
+5. Wait for all four installers to pass their installation checks.
+6. Download the `.dmg` or `.deb` from GitHub Releases and verify it against
+   `SHA256SUMS`.
+
+The tagged workflow refuses a tag that is not contained in `release`, refuses
+malformed semantic versions, and will not publish a partial asset set. Its
+Debian version encoder preserves distinct SemVer identifiers even where dpkg
+would otherwise ignore leading zeroes in numeric runs.
 
 ## Upstream synchronization
 
