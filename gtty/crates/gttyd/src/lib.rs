@@ -4,13 +4,13 @@ use std::collections::BTreeSet;
 use std::env;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::thread;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use gtty_protocol::{
     ClientEnvelope, DaemonSnapshot, ErrorCode, EventPayload, IPC_V0, IpcError, MAX_FRAME_BYTES,
@@ -20,6 +20,7 @@ use serde_json::json;
 
 pub const DAEMON_NAME: &str = "gttyd";
 pub const DAEMON_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const MAX_CONNECTIONS: usize = 32;
 static NEXT_EVENT_ID: AtomicU64 = AtomicU64::new(1);
 static NEXT_CONNECTION_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -287,8 +288,10 @@ pub fn bind_socket(path: &Path) -> io::Result<UnixListener> {
         )
     })?;
     if !parent.try_exists()? {
-        fs::create_dir_all(parent)?;
-        fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
+        fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(parent)?;
     }
 
     let metadata = fs::symlink_metadata(parent)?;
@@ -317,36 +320,106 @@ pub fn bind_socket(path: &Path) -> io::Result<UnixListener> {
 pub fn run(path: &Path) -> io::Result<()> {
     let listener = bind_socket(path)?;
     let daemon = Arc::new(Daemon::default());
+    let active_connections = Arc::new(AtomicUsize::new(0));
     for stream in listener.incoming() {
         let stream = match stream {
             Ok(stream) => stream,
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
             Err(error) => return Err(error),
         };
-        let daemon = Arc::clone(&daemon);
         let connection_id = NEXT_CONNECTION_ID.fetch_add(1, Ordering::Relaxed);
-        let handle = thread::Builder::new()
+        let Some(permit) = ConnectionPermit::acquire(&active_connections) else {
+            log_connection_error(
+                "connection.rejected",
+                connection_id,
+                &io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    format!("maximum of {MAX_CONNECTIONS} clients already connected"),
+                ),
+            );
+            continue;
+        };
+
+        let daemon = Arc::clone(&daemon);
+        let spawn_result = thread::Builder::new()
             .name(format!("gttyd-client-{connection_id}"))
             .spawn(move || {
+                let _permit = permit;
                 if let Err(error) = daemon.serve_connection(stream) {
-                    eprintln!(
-                        "{}",
-                        json!({
-                            "level": "error",
-                            "component": DAEMON_NAME,
-                            "event": "connection.failed",
-                            "request_id": null,
-                            "task_id": null,
-                            "session_id": null,
-                            "error_code": "io",
-                            "retryable": true,
-                            "duration_ms": null,
-                            "message": error.to_string(),
-                        })
-                    );
+                    log_connection_error("connection.failed", connection_id, &error);
                 }
-            })?;
-        drop(handle);
+            });
+        match spawn_result {
+            Ok(handle) => drop(handle),
+            Err(error) => {
+                log_connection_error("connection.spawn_failed", connection_id, &error);
+            }
+        }
     }
     Ok(())
+}
+
+struct ConnectionPermit {
+    active_connections: Arc<AtomicUsize>,
+}
+
+impl ConnectionPermit {
+    fn acquire(active_connections: &Arc<AtomicUsize>) -> Option<Self> {
+        active_connections
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                (current < MAX_CONNECTIONS).then_some(current + 1)
+            })
+            .ok()
+            .map(|_| Self {
+                active_connections: Arc::clone(active_connections),
+            })
+    }
+}
+
+impl Drop for ConnectionPermit {
+    fn drop(&mut self) {
+        self.active_connections.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+fn log_connection_error(event: &str, connection_id: u64, error: &io::Error) {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| {
+            u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+        });
+    eprintln!(
+        "{}",
+        json!({
+            "timestamp": timestamp,
+            "level": "error",
+            "component": DAEMON_NAME,
+            "event": event,
+            "connection_id": connection_id,
+            "request_id": null,
+            "task_id": null,
+            "session_id": null,
+            "error_code": "io",
+            "retryable": true,
+            "duration_ms": null,
+            "message": error.to_string(),
+        })
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn connection_permits_enforce_and_release_the_limit() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let permits = (0..MAX_CONNECTIONS)
+            .map(|_| ConnectionPermit::acquire(&active).expect("permit must be available"))
+            .collect::<Vec<_>>();
+
+        assert!(ConnectionPermit::acquire(&active).is_none());
+        drop(permits);
+        assert!(ConnectionPermit::acquire(&active).is_some());
+    }
 }

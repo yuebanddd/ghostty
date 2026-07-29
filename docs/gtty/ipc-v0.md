@@ -19,6 +19,10 @@ IPC v0 is the local contract between native GTTY clients and `gttyd`.
 The daemon refuses to replace an existing socket path. Stale-socket recovery
 will require an explicit liveness check in a later lifecycle PR.
 
+The daemon serves at most 32 clients concurrently. A connection beyond that
+bound is closed without affecting active sessions and emits a structured local
+diagnostic.
+
 ## Version and capability negotiation
 
 The first client frame must be `kind: "handshake"`. Both peers publish

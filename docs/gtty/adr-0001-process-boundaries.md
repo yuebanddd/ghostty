@@ -63,6 +63,10 @@ Structured daemon logs will use these stable fields:
 - `retryable`
 - `duration_ms`
 
+`timestamp` is an unsigned Unix epoch value in milliseconds. The daemon limits
+itself to 32 simultaneous local clients; excess connections are rejected with a
+structured diagnostic without interrupting existing sessions.
+
 Diagnostic files belong under `$GTTY_STATE_DIR/diagnostics`, falling back to
 the platform user-state directory. Credentials, prompt bodies, environment
 values, and raw terminal output must be redacted by default. Packaging a
