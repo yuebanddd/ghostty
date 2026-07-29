@@ -1,0 +1,15 @@
+{
+  "kind": "handshake",
+  "request_id": "req-001",
+  "protocol": {
+    "major": 0,
+    "minor": 1
+  },
+  "client": {
+    "name": "gtty-macos",
+    "version": "0.1.0"
+  },
+  "capabilities": [
+    "state.snapshot"
+  ]
+}

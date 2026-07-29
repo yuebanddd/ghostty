@@ -12,6 +12,7 @@ zig-cache/
 zig-pkg/
 zig-out/
 zig-pkg/
+/target/
 build-cmake/
 CMakeCache.txt
 CMakeFiles/

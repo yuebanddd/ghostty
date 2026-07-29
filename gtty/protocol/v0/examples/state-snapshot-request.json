@@ -1,0 +1,7 @@
+{
+  "kind": "request",
+  "request_id": "req-002",
+  "method": "state.snapshot",
+  "params": {},
+  "timeout_ms": 1000
+}

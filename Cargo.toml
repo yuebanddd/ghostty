@@ -1,0 +1,22 @@
+[workspace]
+members = [
+    "gtty/crates/gtty-protocol",
+    "gtty/crates/gttyd",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+
+[workspace.dependencies]
+gtty-protocol = { path = "gtty/crates/gtty-protocol" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
