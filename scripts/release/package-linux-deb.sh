@@ -136,11 +136,12 @@ dpkg-deb --root-owner-group --build "$package_root" "$artifact"
 test "$(dpkg-deb --field "$artifact" Package)" = "gtty"
 test "$(dpkg-deb --field "$artifact" Version)" = "$deb_version"
 test "$(dpkg-deb --field "$artifact" Architecture)" = "$architecture"
-dpkg-deb --contents "$artifact" | grep -Eq '[.]/usr/bin/(gtty|ghostty)$'
-dpkg-deb --contents "$artifact" | grep -Eq '[.]/usr/bin/gttyd$'
+package_contents="$(dpkg-deb --contents "$artifact")"
+grep -Eq '[.]/usr/bin/(gtty|ghostty)$' <<< "$package_contents"
+grep -Eq '[.]/usr/bin/gttyd$' <<< "$package_contents"
 if [[ -e "$private_layer_shell" ]]; then
-  dpkg-deb --contents "$artifact" \
-    | grep -Eq '[.]/usr/lib/gtty/libgtk4-layer-shell[.]so[.]0$'
+  grep -Eq '[.]/usr/lib/gtty/libgtk4-layer-shell[.]so[.]0$' \
+    <<< "$package_contents"
 fi
 test -s "$artifact"
 
