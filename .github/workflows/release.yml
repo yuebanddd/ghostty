@@ -32,7 +32,7 @@ permissions:
 
 concurrency:
   group: gtty-release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   ZIG_VERSION: 0.16.0
@@ -232,21 +232,27 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check out release helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: source
       - name: Download verified installers
         uses: actions/download-artifact@v8
         with:
           pattern: gtty-release-*
-          path: dist
+          path: release-dist
           merge-multiple: true
       - name: Validate release asset set
         shell: bash
         env:
           GTTY_VERSION: ${{ needs.policy.outputs.version }}
         run: |
-          bash scripts/release/verify-release-assets.sh "$GTTY_VERSION" dist
+          bash source/scripts/release/verify-release-assets.sh \
+            "$GTTY_VERSION" \
+            release-dist
       - name: Generate checksums
         shell: bash
-        working-directory: dist
+        working-directory: release-dist
         run: |
           find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' \
             | sort -z \
@@ -272,7 +278,7 @@ jobs:
             and the `gttyd` local daemon. It replaces an installed `ghostty`
             Debian package because both provide the same terminal resources.
             Verify every download with `SHA256SUMS`.
-          files: dist/*
+          files: release-dist/*
           fail_on_unmatched_files: true
           generate_release_notes: true
           prerelease: true
