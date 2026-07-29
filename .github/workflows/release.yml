@@ -81,9 +81,47 @@ jobs:
             exit 1
           fi
 
+  source:
+    name: Packaging source
+    needs: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out GTTY
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install Nix for source generation
+        uses: DeterminateSystems/nix-installer-action@v22
+      - name: Generate packaging source
+        shell: bash
+        env:
+          GTTY_VERSION: ${{ needs.policy.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          nix develop -c zig build dist -Dversion-string="$GTTY_VERSION"
+
+          source_tarball="$(
+            find zig-out/dist -maxdepth 1 -type f -name 'ghostty-*.tar.gz' \
+              -print -quit
+          )"
+          test -n "$source_tarball"
+          mkdir -p packaging-source
+          cp "$source_tarball" packaging-source/
+      - name: Upload packaging source
+        uses: actions/upload-artifact@v6
+        with:
+          name: gtty-packaging-source
+          path: packaging-source/*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
   linux:
     name: Linux ${{ matrix.arch }}
-    needs: policy
+    needs:
+      - policy
+      - source
     strategy:
       fail-fast: false
       matrix:
@@ -101,8 +139,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Install Nix for source generation
-        uses: DeterminateSystems/nix-installer-action@v22
       - name: Install Linux build dependencies
         shell: bash
         run: |
@@ -121,17 +157,19 @@ jobs:
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: ${{ env.ZIG_VERSION }}
-      - name: Generate packaging source
+          use-cache: false
+      - name: Download packaging source
+        uses: actions/download-artifact@v8
+        with:
+          name: gtty-packaging-source
+          path: packaging-source
+      - name: Extract packaging source
         shell: bash
-        env:
-          GTTY_VERSION: ${{ needs.policy.outputs.version }}
         run: |
           set -euo pipefail
 
-          nix develop -c zig build dist -Dversion-string="$GTTY_VERSION"
-
           source_tarball="$(
-            find zig-out/dist -maxdepth 1 -type f -name 'ghostty-*.tar.gz' \
+            find packaging-source -maxdepth 1 -type f -name 'ghostty-*.tar.gz' \
               -print -quit
           )"
           test -n "$source_tarball"
@@ -304,6 +342,7 @@ jobs:
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: ${{ env.ZIG_VERSION }}
+          use-cache: false
       - name: Build macOS application
         shell: bash
         env:

@@ -63,11 +63,11 @@ expect_before() {
 }
 
 expect_valid "gtty-v0.1.0" "0.1.0" "0.1.0"
-expect_valid "gtty-v1.2.3-rc.1" "1.2.3-rc.1" "1.2.3~sjeifabn1a"
+expect_valid "gtty-v1.2.3-rc.1" "1.2.3-rc.1" "1.2.3~sjeifabn1aa"
 expect_valid \
   "gtty-v1.2.3-beta.2+build.7" \
   "1.2.3-beta.2+build.7" \
-  "1.2.3~sieihjgidabn2a+biejhilioigeqfj"
+  "1.2.3~sieihjgidabn2aa+biejhilioigeqfj"
 expect_valid \
   "gtty-v1.2.3+build-7" \
   "1.2.3+build-7" \
@@ -75,11 +75,11 @@ expect_valid \
 expect_valid \
   "gtty-v1.2.3-alpha-" \
   "1.2.3-alpha-" \
-  "1.2.3~sidiojcikidepa"
+  "1.2.3~sidiojcikidepaa"
 expect_valid \
   "gtty-v1.2.3-alpha-0" \
   "1.2.3-alpha-0" \
-  "1.2.3~sidiojcikidepfca"
+  "1.2.3~sidiojcikidepfcaa"
 expect_valid \
   "gtty-v1.2.3+build-" \
   "1.2.3+build-" \
@@ -100,6 +100,7 @@ expect_before "gtty-v1.2.3-1" "gtty-v1.2.3-alpha"
 expect_before "gtty-v1.2.3-alpha.2" "gtty-v1.2.3-alpha.10"
 expect_before "gtty-v1.2.3-alpha" "gtty-v1.2.3-beta"
 expect_before "gtty-v1.2.3-rc.1" "gtty-v1.2.3"
+expect_before "gtty-v1.2.3-rc+foo" "gtty-v1.2.3-rc.1"
 
 expect_invalid "v1.2.3"
 expect_invalid "gtty-v1.2"

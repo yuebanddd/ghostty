@@ -61,7 +61,7 @@ encode_prerelease() {
     separator='b'
   done
 
-  printf '%s' "$encoded"
+  printf '%sa' "$encoded"
 }
 
 core_version="${without_build%%-*}"
