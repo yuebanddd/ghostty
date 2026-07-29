@@ -37,15 +37,23 @@ expect_valid \
 expect_valid \
   "gtty-v1.2.3+build-7" \
   "1.2.3+build-7" \
-  "1.2.3+build-7"
+  "1.2.3+build+hyphen+7"
 expect_valid \
   "gtty-v1.2.3-alpha-" \
   "1.2.3-alpha-" \
-  "1.2.3~alpha-0"
+  "1.2.3~alpha+hyphen+"
+expect_valid \
+  "gtty-v1.2.3-alpha-0" \
+  "1.2.3-alpha-0" \
+  "1.2.3~alpha+hyphen+0"
 expect_valid \
   "gtty-v1.2.3+build-" \
   "1.2.3+build-" \
-  "1.2.3+build-0"
+  "1.2.3+build+hyphen+"
+expect_valid \
+  "gtty-v1.2.3+build-0" \
+  "1.2.3+build-0" \
+  "1.2.3+build+hyphen+0"
 
 expect_invalid "v1.2.3"
 expect_invalid "gtty-v1.2"
