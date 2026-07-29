@@ -7,7 +7,9 @@ use std::io::{self, BufRead, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::thread;
 use std::time::Instant;
 
 use gtty_protocol::{
@@ -19,6 +21,7 @@ use serde_json::json;
 pub const DAEMON_NAME: &str = "gttyd";
 pub const DAEMON_VERSION: &str = env!("CARGO_PKG_VERSION");
 static NEXT_EVENT_ID: AtomicU64 = AtomicU64::new(1);
+static NEXT_CONNECTION_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug)]
 pub struct Daemon {
@@ -252,7 +255,7 @@ fn write_message(writer: &mut impl Write, message: &ServerEnvelope) -> io::Resul
 /// Returns the daemon socket location shared by the native UI clients.
 pub fn default_socket_path() -> io::Result<PathBuf> {
     if let Some(path) = env::var_os("GTTY_RUNTIME_DIR") {
-        return Ok(PathBuf::from(path).join("gttyd.sock"));
+        return Ok(PathBuf::from(path).join("gtty").join("gttyd.sock"));
     }
     if let Some(path) = env::var_os("XDG_RUNTIME_DIR") {
         return Ok(PathBuf::from(path).join("gtty").join("gttyd.sock"));
@@ -283,20 +286,67 @@ pub fn bind_socket(path: &Path) -> io::Result<UnixListener> {
             "socket path must have a parent directory",
         )
     })?;
-    fs::create_dir_all(parent)?;
-    fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
+    if !parent.try_exists()? {
+        fs::create_dir_all(parent)?;
+        fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
+    }
+
+    let metadata = fs::symlink_metadata(parent)?;
+    if !metadata.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "socket parent must be a real directory",
+        ));
+    }
+    if metadata.permissions().mode() & 0o077 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "socket parent must not be accessible by group or other users",
+        ));
+    }
 
     let listener = UnixListener::bind(path)?;
-    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    if let Err(error) = fs::set_permissions(path, fs::Permissions::from_mode(0o600)) {
+        drop(listener);
+        let _ = fs::remove_file(path);
+        return Err(error);
+    }
     Ok(listener)
 }
 
 pub fn run(path: &Path) -> io::Result<()> {
     let listener = bind_socket(path)?;
-    let daemon = Daemon::default();
+    let daemon = Arc::new(Daemon::default());
     for stream in listener.incoming() {
-        let stream = stream?;
-        daemon.serve_connection(stream)?;
+        let stream = match stream {
+            Ok(stream) => stream,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
+        let daemon = Arc::clone(&daemon);
+        let connection_id = NEXT_CONNECTION_ID.fetch_add(1, Ordering::Relaxed);
+        let handle = thread::Builder::new()
+            .name(format!("gttyd-client-{connection_id}"))
+            .spawn(move || {
+                if let Err(error) = daemon.serve_connection(stream) {
+                    eprintln!(
+                        "{}",
+                        json!({
+                            "level": "error",
+                            "component": DAEMON_NAME,
+                            "event": "connection.failed",
+                            "request_id": null,
+                            "task_id": null,
+                            "session_id": null,
+                            "error_code": "io",
+                            "retryable": true,
+                            "duration_ms": null,
+                            "message": error.to_string(),
+                        })
+                    );
+                }
+            })?;
+        drop(handle);
     }
     Ok(())
 }

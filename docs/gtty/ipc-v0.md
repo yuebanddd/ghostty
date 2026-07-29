@@ -8,8 +8,9 @@ IPC v0 is the local contract between native GTTY clients and `gttyd`.
 - Framing: one UTF-8 JSON object per line.
 - Maximum frame size: 1 MiB, excluding the newline delimiter.
 - Socket mode: `0600`.
-- Parent directory mode: `0700`.
-- Override: `$GTTY_RUNTIME_DIR/gttyd.sock`.
+- Parent directory mode: `0700`; pre-existing broader directories are rejected,
+  not modified.
+- Override: `$GTTY_RUNTIME_DIR/gtty/gttyd.sock`.
 - Linux default: `$XDG_RUNTIME_DIR/gtty/gttyd.sock`, then
   `$HOME/.cache/gtty/gttyd.sock`.
 - macOS default:
