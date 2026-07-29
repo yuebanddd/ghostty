@@ -41,7 +41,7 @@ encode_bytes() {
   LC_ALL=C printf '%s' "$value" \
     | od -An -v -tx1 \
     | tr -d ' \n' \
-    | tr '0123456789abcdef' 'abcdefghijklmnop'
+    | tr '0123456789abcdef' 'cdefghijklmnopqr'
 }
 
 encode_prerelease() {
@@ -54,11 +54,11 @@ encode_prerelease() {
   IFS='.' read -r -a values <<< "$value"
   for identifier_value in "${values[@]}"; do
     if [[ "$identifier_value" =~ ^[0-9]+$ ]]; then
-      encoded+="${separator}n${identifier_value}"
+      encoded+="${separator}n${identifier_value}a"
     else
-      encoded+="${separator}s$(encode_bytes "$identifier_value")"
+      encoded+="${separator}s$(encode_bytes "$identifier_value")a"
     fi
-    separator='.'
+    separator='b'
   done
 
   printf '%s' "$encoded"

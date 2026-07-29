@@ -47,37 +47,59 @@ expect_distinct() {
   fi
 }
 
+expect_before() {
+  local earlier_tag="$1"
+  local later_tag="$2"
+  local earlier_version
+  local later_version
+
+  earlier_version="$("$resolver" "$earlier_tag" | sed -n 's/^deb_version=//p')"
+  later_version="$("$resolver" "$later_tag" | sed -n 's/^deb_version=//p')"
+  if command -v dpkg >/dev/null 2>&1 \
+    && ! dpkg --compare-versions "$earlier_version" lt "$later_version"; then
+    echo "Debian order does not preserve SemVer: $earlier_tag, $later_tag" >&2
+    exit 1
+  fi
+}
+
 expect_valid "gtty-v0.1.0" "0.1.0" "0.1.0"
-expect_valid "gtty-v1.2.3-rc.1" "1.2.3-rc.1" "1.2.3~shcgd.n1"
+expect_valid "gtty-v1.2.3-rc.1" "1.2.3-rc.1" "1.2.3~sjeifabn1a"
 expect_valid \
   "gtty-v1.2.3-beta.2+build.7" \
   "1.2.3-beta.2+build.7" \
-  "1.2.3~sgcgfhegb.n2+bgchfgjgmgecodh"
+  "1.2.3~sieihjgidabn2a+biejhilioigeqfj"
 expect_valid \
   "gtty-v1.2.3+build-7" \
   "1.2.3+build-7" \
-  "1.2.3+bgchfgjgmgecndh"
+  "1.2.3+biejhilioigepfj"
 expect_valid \
   "gtty-v1.2.3-alpha-" \
   "1.2.3-alpha-" \
-  "1.2.3~sgbgmhagigbcn"
+  "1.2.3~sidiojcikidepa"
 expect_valid \
   "gtty-v1.2.3-alpha-0" \
   "1.2.3-alpha-0" \
-  "1.2.3~sgbgmhagigbcnda"
+  "1.2.3~sidiojcikidepfca"
 expect_valid \
   "gtty-v1.2.3+build-" \
   "1.2.3+build-" \
-  "1.2.3+bgchfgjgmgecn"
+  "1.2.3+biejhilioigep"
 expect_valid \
   "gtty-v1.2.3+build-0" \
   "1.2.3+build-0" \
-  "1.2.3+bgchfgjgmgecnda"
+  "1.2.3+biejhilioigepfc"
 
 expect_distinct "gtty-v1.2.3-alpha-" "gtty-v1.2.3-alpha-0"
 expect_distinct "gtty-v1.2.3+build-" "gtty-v1.2.3+build-0"
 expect_distinct "gtty-v1.2.3+build.0" "gtty-v1.2.3+build.00"
 expect_distinct "gtty-v1.2.3-alpha1" "gtty-v1.2.3-alpha01"
+
+expect_before "gtty-v1.2.3-rc.1" "gtty-v1.2.3-rc1"
+expect_before "gtty-v1.2.3-rc" "gtty-v1.2.3-rc.1"
+expect_before "gtty-v1.2.3-1" "gtty-v1.2.3-alpha"
+expect_before "gtty-v1.2.3-alpha.2" "gtty-v1.2.3-alpha.10"
+expect_before "gtty-v1.2.3-alpha" "gtty-v1.2.3-beta"
+expect_before "gtty-v1.2.3-rc.1" "gtty-v1.2.3"
 
 expect_invalid "v1.2.3"
 expect_invalid "gtty-v1.2"
