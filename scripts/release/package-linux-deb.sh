@@ -63,13 +63,24 @@ Description: GTTY AI development terminal preview
  GTTY combines the Ghostty terminal foundation with a local AI task daemon.
 EOF
 
+shlibdeps_args=(
+  -O
+  -l"debian/gtty/usr/lib"
+  -l"debian/gtty/usr/lib/gtty"
+  -e"debian/gtty/usr/bin/ghostty"
+  -e"debian/gtty/usr/bin/gttyd"
+)
+private_layer_shell="$package_root/usr/lib/gtty/libgtk4-layer-shell.so.0"
+if [[ -e "$private_layer_shell" ]]; then
+  private_shlibs="$work_dir/debian/gtty.shlibs.local"
+  printf 'libgtk4-layer-shell 0 gtty (= %s)\n' "$deb_version" \
+    > "$private_shlibs"
+  shlibdeps_args+=("-Ldebian/gtty.shlibs.local" -xgtty)
+fi
+
 dependency_output="$(
   cd "$work_dir"
-  dpkg-shlibdeps \
-    -O \
-    -l"debian/gtty/usr/lib" \
-    -e"debian/gtty/usr/bin/ghostty" \
-    -e"debian/gtty/usr/bin/gttyd"
+  dpkg-shlibdeps "${shlibdeps_args[@]}"
 )"
 dependencies="${dependency_output#shlibs:Depends=}"
 if [[ -z "$dependencies" || "$dependencies" == "$dependency_output" ]]; then
@@ -127,6 +138,10 @@ test "$(dpkg-deb --field "$artifact" Version)" = "$deb_version"
 test "$(dpkg-deb --field "$artifact" Architecture)" = "$architecture"
 dpkg-deb --contents "$artifact" | grep -Eq '[.]/usr/bin/(gtty|ghostty)$'
 dpkg-deb --contents "$artifact" | grep -Eq '[.]/usr/bin/gttyd$'
+if [[ -e "$private_layer_shell" ]]; then
+  dpkg-deb --contents "$artifact" \
+    | grep -Eq '[.]/usr/lib/gtty/libgtk4-layer-shell[.]so[.]0$'
+fi
 test -s "$artifact"
 
 echo "Created $artifact"

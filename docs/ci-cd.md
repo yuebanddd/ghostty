@@ -58,8 +58,18 @@ artifacts, but does not create a GitHub Release. A valid semantic tag such as
 The Debian package installs the terminal as `ghostty`, adds `gtty` as the GTTY
 command, and installs the `gttyd` local daemon. Because it owns the same
 terminal resources, it declares that it conflicts with and replaces an
-installed `ghostty` Debian package. The macOS disk image contains `GTTY.app`,
-an `Applications` shortcut, and embeds `gttyd` in the application bundle.
+installed `ghostty` Debian package. It also carries its own
+`gtk4-layer-shell` runtime under `/usr/lib/gtty`; Ubuntu 24.04 does not provide
+that GTK4 library, so the terminal uses a package-relative RPATH and requires no
+third-party apt repository.
+
+Linux packaging first generates Ghostty's official-format source tarball. That
+tarball contains the precompiled Blueprint GTK resources required by downstream
+packagers; compiling a raw Git checkout would require a newer
+`blueprint-compiler` than Ubuntu 24.04 provides.
+
+The macOS disk image contains `GTTY.app`, an `Applications` shortcut, and embeds
+`gttyd` in the application bundle.
 
 Until Developer ID signing and notarization are configured, macOS filenames
 contain `unsigned`, the app uses an ad-hoc signature, and GitHub Releases are
