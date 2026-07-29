@@ -43,9 +43,9 @@ ln -s ghostty "$package_root/usr/bin/gtty"
 staging_prefix="$install_root/usr"
 while IFS= read -r -d '' file; do
   sed -i "s|$staging_prefix|/usr|g" "$file"
-done < <(grep -RIlZ --fixed-strings "$staging_prefix" "$package_root/usr" || true)
+done < <(grep -rIlZ --fixed-strings "$staging_prefix" "$package_root/usr" || true)
 
-if grep -RIl --fixed-strings "$staging_prefix" "$package_root/usr" | grep -q .; then
+if grep -rIl --fixed-strings "$staging_prefix" "$package_root/usr" | grep -q .; then
   echo "The Debian package still contains its temporary build prefix." >&2
   exit 1
 fi

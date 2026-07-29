@@ -35,7 +35,15 @@ if [[ "$without_build" == *-* ]]; then
   done
 fi
 
-deb_version="${version/-/\~}"
+base_version="${version%%+*}"
+if [[ "$base_version" == *-* ]]; then
+  deb_version="${base_version/-/\~}"
+else
+  deb_version="$base_version"
+fi
+if [[ "$version" == *+* ]]; then
+  deb_version="${deb_version}+${version#*+}"
+fi
 
 printf 'version=%s\n' "$version"
 printf 'deb_version=%s\n' "$deb_version"

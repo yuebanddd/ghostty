@@ -59,7 +59,7 @@ ln -s /Applications "$staging_dir/Applications"
 
 artifact="$output_dir/GTTY-${version}-macOS-${architecture}-unsigned.dmg"
 hdiutil create \
-  -volname "GTTY $version" \
+  -volname "GTTY" \
   -srcfolder "$staging_dir" \
   -format UDZO \
   -ov \
