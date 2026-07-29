@@ -311,9 +311,14 @@ jobs:
             echo "The installed GTTY terminal has unresolved shared libraries." >&2
             exit 1
           fi
-          grep -Eq \
-            'libgtk4-layer-shell\.so\.0 => /usr/lib/gtty/libgtk4-layer-shell\.so\.0' \
-            <<< "$ldd_output"
+
+          layer_shell_path="$(
+            awk '$1 == "libgtk4-layer-shell.so.0" { print $3; exit }' \
+              <<< "$ldd_output"
+          )"
+          test -n "$layer_shell_path"
+          test "$(realpath "$layer_shell_path")" \
+            = "$(realpath /usr/lib/gtty/libgtk4-layer-shell.so.0)"
       - name: Upload Linux installer
         uses: actions/upload-artifact@v6
         with:
