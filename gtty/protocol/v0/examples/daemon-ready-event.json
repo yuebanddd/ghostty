@@ -1,0 +1,8 @@
+{
+  "kind": "event",
+  "event_id": "evt-001",
+  "event": "daemon.ready",
+  "data": {
+    "pid": 4127
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "kind": "handshake",
+  "request_id": "req-001",
+  "accepted": true,
+  "protocol": {
+    "major": 0,
+    "minor": 1
+  },
+  "daemon": {
+    "name": "gttyd",
+    "version": "0.1.0"
+  },
+  "capabilities": [
+    "state.snapshot"
+  ]
+}
