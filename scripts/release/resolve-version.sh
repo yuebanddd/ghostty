@@ -35,19 +35,43 @@ if [[ "$without_build" == *-* ]]; then
   done
 fi
 
-base_version="${version%%+*}"
-if [[ "$base_version" == *-* ]]; then
-  deb_version="${base_version/-/\~}"
-else
-  deb_version="$base_version"
+encode_bytes() {
+  local value="$1"
+
+  LC_ALL=C printf '%s' "$value" \
+    | od -An -v -tx1 \
+    | tr -d ' \n' \
+    | tr '0123456789abcdef' 'abcdefghijklmnop'
+}
+
+encode_prerelease() {
+  local value="$1"
+  local encoded=""
+  local identifier_value
+  local separator=""
+  local -a values
+
+  IFS='.' read -r -a values <<< "$value"
+  for identifier_value in "${values[@]}"; do
+    if [[ "$identifier_value" =~ ^[0-9]+$ ]]; then
+      encoded+="${separator}n${identifier_value}"
+    else
+      encoded+="${separator}s$(encode_bytes "$identifier_value")"
+    fi
+    separator='.'
+  done
+
+  printf '%s' "$encoded"
+}
+
+core_version="${without_build%%-*}"
+deb_version="$core_version"
+if [[ "$without_build" == *-* ]]; then
+  deb_version="${deb_version}~$(encode_prerelease "${without_build#*-}")"
 fi
 if [[ "$version" == *+* ]]; then
-  deb_version="${deb_version}+${version#*+}"
+  deb_version="${deb_version}+b$(encode_bytes "${version#*+}")"
 fi
-# Debian interprets the final hyphen as its package-revision separator. Encode
-# every identifier hyphen with a sequence that SemVer identifiers cannot
-# contain, preserving a one-to-one mapping without an empty Debian revision.
-deb_version="${deb_version//-/+hyphen+}"
 
 printf 'version=%s\n' "$version"
 printf 'deb_version=%s\n' "$deb_version"

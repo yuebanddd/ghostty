@@ -96,7 +96,9 @@ upstream release credential is used.
    `SHA256SUMS`.
 
 The tagged workflow refuses a tag that is not contained in `release`, refuses
-malformed semantic versions, and will not publish a partial asset set.
+malformed semantic versions, and will not publish a partial asset set. Its
+Debian version encoder preserves distinct SemVer identifiers even where dpkg
+would otherwise ignore leading zeroes in numeric runs.
 
 ## Upstream synchronization
 
