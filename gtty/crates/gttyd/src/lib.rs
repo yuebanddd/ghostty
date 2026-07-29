@@ -295,10 +295,8 @@ pub fn run(path: &Path) -> io::Result<()> {
     let listener = bind_socket(path)?;
     let daemon = Daemon::default();
     for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => daemon.serve_connection(stream)?,
-            Err(error) => return Err(error),
-        }
+        let stream = stream?;
+        daemon.serve_connection(stream)?;
     }
     Ok(())
 }
