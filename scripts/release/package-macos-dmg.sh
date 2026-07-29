@@ -47,6 +47,11 @@ mkdir -p "$staging_dir" "$mount_dir" "$output_dir"
 ditto "$app_bundle" "$packaged_app"
 install -m 0755 "$gttyd_binary" "$packaged_app/Contents/MacOS/gttyd"
 
+original_entitlements="$work_dir/original-entitlements.plist"
+codesign -d --entitlements :- "$packaged_app" \
+  > "$original_entitlements" 2>/dev/null
+test -s "$original_entitlements"
+
 bundle_version="${version%%[-+]*}"
 plist="$packaged_app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName GTTY" "$plist" \
@@ -60,6 +65,22 @@ plist="$packaged_app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $bundle_version" "$plist" \
   || /usr/libexec/PlistBuddy -c \
     "Add :CFBundleVersion string $bundle_version" "$plist"
+/usr/libexec/PlistBuddy -c "Add :GTTYUpdatesEnabled bool false" "$plist" \
+  || /usr/libexec/PlistBuddy -c "Set :GTTYUpdatesEnabled false" "$plist"
+/usr/libexec/PlistBuddy -c "Delete :SUPublicEDKey" "$plist" || true
+
+dock_plugin="$(
+  /usr/libexec/PlistBuddy -c 'Print :NSDockTilePlugIn' "$plist" 2>/dev/null \
+    || true
+)"
+if [[ -n "$dock_plugin" ]]; then
+  while IFS= read -r -d '' plugin_path; do
+    rm -rf -- "$plugin_path"
+  done < <(
+    find "$packaged_app/Contents" -type d -name "$dock_plugin" -prune -print0
+  )
+  /usr/libexec/PlistBuddy -c "Delete :NSDockTilePlugIn" "$plist"
+fi
 
 while IFS= read -r -d '' bundle_plist; do
   identifier="$(
@@ -75,8 +96,19 @@ while IFS= read -r -d '' bundle_plist; do
   esac
 done < <(find "$packaged_app" -type f -name Info.plist -print0)
 
-codesign --force --deep --sign - --timestamp=none "$packaged_app"
+codesign \
+  --force \
+  --deep \
+  --sign - \
+  --timestamp=none \
+  --preserve-metadata=entitlements,flags \
+  "$packaged_app"
 codesign --verify --deep --strict "$packaged_app"
+signed_entitlements="$work_dir/signed-entitlements.plist"
+codesign -d --entitlements :- "$packaged_app" \
+  > "$signed_entitlements" 2>/dev/null
+cmp "$original_entitlements" "$signed_entitlements"
+codesign -d --verbose=4 "$packaged_app" 2>&1 | grep -Eq 'flags=.*runtime'
 ln -s /Applications "$staging_dir/Applications"
 
 artifact="$output_dir/GTTY-${version}-macOS-${architecture}-unsigned.dmg"
@@ -111,6 +143,18 @@ test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
   "$mount_dir/GTTY.app/Contents/Info.plist")" = "$bundle_version"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' \
   "$mount_dir/GTTY.app/Contents/Info.plist")" = "$bundle_version"
+test "$(/usr/libexec/PlistBuddy -c 'Print :GTTYUpdatesEnabled' \
+  "$mount_dir/GTTY.app/Contents/Info.plist")" = "false"
+if /usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' \
+  "$mount_dir/GTTY.app/Contents/Info.plist" >/dev/null 2>&1; then
+  echo "The packaged app retains the upstream Sparkle public key." >&2
+  exit 1
+fi
+if /usr/libexec/PlistBuddy -c 'Print :NSDockTilePlugIn' \
+  "$mount_dir/GTTY.app/Contents/Info.plist" >/dev/null 2>&1; then
+  echo "The packaged app retains the incompatible Dock tile plugin." >&2
+  exit 1
+fi
 while IFS= read -r -d '' bundle_plist; do
   identifier="$(
     /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
@@ -122,6 +166,12 @@ while IFS= read -r -d '' bundle_plist; do
   fi
 done < <(find "$mount_dir/GTTY.app" -type f -name Info.plist -print0)
 codesign --verify --deep --strict "$mount_dir/GTTY.app"
+mounted_entitlements="$work_dir/mounted-entitlements.plist"
+codesign -d --entitlements :- "$mount_dir/GTTY.app" \
+  > "$mounted_entitlements" 2>/dev/null
+cmp "$original_entitlements" "$mounted_entitlements"
+codesign -d --verbose=4 "$mount_dir/GTTY.app" 2>&1 \
+  | grep -Eq 'flags=.*runtime'
 test -s "$artifact"
 
 hdiutil detach "$device" -quiet

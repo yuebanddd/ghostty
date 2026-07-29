@@ -14,6 +14,9 @@ expect_valid() {
   grep -Fxq "version=$version" <<< "$output"
   grep -Fxq "deb_version=$deb_version" <<< "$output"
   grep -Fxq "tag=$tag" <<< "$output"
+  if command -v dpkg >/dev/null 2>&1; then
+    dpkg --validate-version "$deb_version"
+  fi
 }
 
 expect_invalid() {
@@ -35,6 +38,14 @@ expect_valid \
   "gtty-v1.2.3+build-7" \
   "1.2.3+build-7" \
   "1.2.3+build-7"
+expect_valid \
+  "gtty-v1.2.3-alpha-" \
+  "1.2.3-alpha-" \
+  "1.2.3~alpha-0"
+expect_valid \
+  "gtty-v1.2.3+build-" \
+  "1.2.3+build-" \
+  "1.2.3+build-0"
 
 expect_invalid "v1.2.3"
 expect_invalid "gtty-v1.2"

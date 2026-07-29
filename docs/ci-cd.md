@@ -73,7 +73,10 @@ packagers; compiling a raw Git checkout would require a newer
 The macOS disk image contains `GTTY.app`, an `Applications` shortcut, and embeds
 `gttyd` in the application bundle. Packaging assigns the main app and embedded
 bundles GTTY-owned identifiers under `com.yuebanddd.gtty`, and stamps the
-semantic release's numeric version into the app metadata before signing.
+semantic release's numeric version into the app metadata before signing. The
+unsigned preview preserves the Xcode entitlements and hardened-runtime flags,
+while disabling Ghostty's upstream Sparkle feed and incompatible Dock tile
+plugin until GTTY-owned replacements exist.
 
 Until Developer ID signing and notarization are configured, macOS filenames
 contain `unsigned`, the app uses an ad-hoc signature, and GitHub Releases are

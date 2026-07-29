@@ -44,6 +44,9 @@ fi
 if [[ "$version" == *+* ]]; then
   deb_version="${deb_version}+${version#*+}"
 fi
+if [[ "$deb_version" == *- ]]; then
+  deb_version="${deb_version}0"
+fi
 
 printf 'version=%s\n' "$version"
 printf 'deb_version=%s\n' "$deb_version"
