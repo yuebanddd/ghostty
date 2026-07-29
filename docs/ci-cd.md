@@ -38,8 +38,13 @@ formatting, lint, unit, and integration checks run for the GTTY workspace.
 
 `release.yml` runs only when:
 
+- a pull request changes release, packaging, or packaged application inputs;
 - a `gtty-v*` tag is pushed; or
 - a maintainer starts a manual dispatch.
+
+A packaging-related pull request builds and verifies all four installers using
+an internal `0.0.0-pr.<number>` version. It uploads short-lived workflow
+artifacts but cannot create a GitHub Release.
 
 A manual dispatch from `release` is a dry run: it builds the same verified
 installers as a tagged release and exposes them as downloadable workflow

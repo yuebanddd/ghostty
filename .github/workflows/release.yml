@@ -1,6 +1,21 @@
 name: GTTY Release
 
 on:
+  pull_request:
+    branches:
+      - release
+    paths:
+      - .github/workflows/release.yml
+      - scripts/release/**
+      - Cargo.lock
+      - Cargo.toml
+      - rust-toolchain.toml
+      - gtty/**
+      - build.zig
+      - build.zig.zon
+      - src/build/**
+      - macos/**
+      - dist/**
   push:
     tags:
       - gtty-v*
@@ -45,6 +60,7 @@ jobs:
         shell: bash
         env:
           MANUAL_VERSION: ${{ inputs.version }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
 
@@ -57,7 +73,12 @@ jobs:
               echo "Release tags must point to a commit contained in release." >&2
               exit 1
             fi
-          else
+          elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            bash scripts/release/resolve-version.sh "gtty-v0.0.0-pr.${PR_NUMBER}" \
+              >> "$GITHUB_OUTPUT"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Pull requests build and verify installers without publishing."
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             if [[ "${GITHUB_REF_NAME}" != "release" ]]; then
               echo "Manual release dry runs must use the release branch." >&2
               exit 1
@@ -67,6 +88,9 @@ jobs:
               >> "$GITHUB_OUTPUT"
             echo "publish=false" >> "$GITHUB_OUTPUT"
             echo "Manual dispatch builds complete installers without creating a GitHub Release."
+          else
+            echo "Unsupported release event: ${GITHUB_EVENT_NAME}" >&2
+            exit 1
           fi
 
   linux:
