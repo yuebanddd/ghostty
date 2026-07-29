@@ -30,9 +30,9 @@ GTTY CI runs on:
 - pushes to `release`;
 - explicit manual dispatch.
 
-The Linux job uses `ubuntu-24.04` with Nix and no Cachix account. The
-macOS job uses the GitHub-hosted `macos-26` arm64 runner. Rust checks activate
-automatically after a root Cargo workspace is added.
+The Linux CI job uses `ubuntu-24.04` with Nix and no Cachix account. The
+macOS CI job uses the GitHub-hosted `macos-26` arm64 runner. Locked Rust
+formatting, lint, unit, and integration checks run for the GTTY workspace.
 
 ## Release triggers and artifacts
 
@@ -41,18 +41,40 @@ automatically after a root Cargo workspace is added.
 - a `gtty-v*` tag is pushed; or
 - a maintainer starts a manual dispatch.
 
-A manual dispatch is a dry run: it builds downloadable workflow artifacts but
-does not create a GitHub Release. A valid semantic tag such as `gtty-v0.1.0`
-builds:
+A manual dispatch from `release` is a dry run: it builds the same verified
+installers as a tagged release and exposes them as downloadable workflow
+artifacts, but does not create a GitHub Release. A valid semantic tag such as
+`gtty-v0.1.0` must point to a commit contained in `release` and builds:
 
-- Linux x86_64 and aarch64 tarballs;
-- macOS arm64 and x86_64 zip archives;
+- Ubuntu 24.04-compatible Debian packages for amd64 and arm64;
+- macOS disk images for Apple Silicon and Intel;
 - `SHA256SUMS`.
 
-Until signing is configured, filenames contain `unsigned` and GitHub Releases
-are marked as prereleases. No Apple Developer ID, notarization, Linux package
-signature, Snap, Flatpak, Homebrew, Sentry, Cachix account, or upstream release
-credential is used.
+The Debian package installs the terminal as `ghostty`, adds `gtty` as the GTTY
+command, and installs the `gttyd` local daemon. Because it owns the same
+terminal resources, it declares that it conflicts with and replaces an
+installed `ghostty` Debian package. The macOS disk image contains `GTTY.app`,
+an `Applications` shortcut, and embeds `gttyd` in the application bundle.
+
+Until Developer ID signing and notarization are configured, macOS filenames
+contain `unsigned`, the app uses an ad-hoc signature, and GitHub Releases are
+marked as prereleases. Linux packages are also unsigned. No Apple Developer ID,
+Linux package signature, Snap, Flatpak, Homebrew, Sentry, Cachix account, or
+upstream release credential is used.
+
+## Creating a release
+
+1. Merge a fully reviewed change into `release`.
+2. Run `GTTY Release` manually on `release` with the intended semantic version.
+3. Download and install the workflow artifacts on the target machines if an
+   additional hands-on check is needed.
+4. Create and push `gtty-v<version>` at the same `release` commit.
+5. Wait for all four installers to pass their installation checks.
+6. Download the `.dmg` or `.deb` from GitHub Releases and verify it against
+   `SHA256SUMS`.
+
+The tagged workflow refuses a tag that is not contained in `release`, refuses
+malformed semantic versions, and will not publish a partial asset set.
 
 ## Upstream synchronization
 
