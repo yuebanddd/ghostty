@@ -47,11 +47,33 @@ mkdir -p "$staging_dir" "$mount_dir" "$output_dir"
 ditto "$app_bundle" "$packaged_app"
 install -m 0755 "$gttyd_binary" "$packaged_app/Contents/MacOS/gttyd"
 
+bundle_version="${version%%[-+]*}"
 plist="$packaged_app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName GTTY" "$plist" \
   || /usr/libexec/PlistBuddy -c "Add :CFBundleName string GTTY" "$plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName GTTY" "$plist" \
   || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string GTTY" "$plist"
+/usr/libexec/PlistBuddy -c \
+  "Set :CFBundleShortVersionString $bundle_version" "$plist" \
+  || /usr/libexec/PlistBuddy -c \
+    "Add :CFBundleShortVersionString string $bundle_version" "$plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $bundle_version" "$plist" \
+  || /usr/libexec/PlistBuddy -c \
+    "Add :CFBundleVersion string $bundle_version" "$plist"
+
+while IFS= read -r -d '' bundle_plist; do
+  identifier="$(
+    /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
+      "$bundle_plist" 2>/dev/null || true
+  )"
+  case "$identifier" in
+    com.mitchellh.ghostty*)
+      gtty_identifier="com.yuebanddd.gtty${identifier#com.mitchellh.ghostty}"
+      /usr/libexec/PlistBuddy -c \
+        "Set :CFBundleIdentifier $gtty_identifier" "$bundle_plist"
+      ;;
+  esac
+done < <(find "$packaged_app" -type f -name Info.plist -print0)
 
 codesign --force --deep --sign - --timestamp=none "$packaged_app"
 codesign --verify --deep --strict "$packaged_app"
@@ -83,6 +105,22 @@ test -x "$mount_dir/GTTY.app/Contents/MacOS/gttyd"
 test -L "$mount_dir/Applications"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' \
   "$mount_dir/GTTY.app/Contents/Info.plist")" = "GTTY"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
+  "$mount_dir/GTTY.app/Contents/Info.plist")" = "com.yuebanddd.gtty"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+  "$mount_dir/GTTY.app/Contents/Info.plist")" = "$bundle_version"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' \
+  "$mount_dir/GTTY.app/Contents/Info.plist")" = "$bundle_version"
+while IFS= read -r -d '' bundle_plist; do
+  identifier="$(
+    /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
+      "$bundle_plist" 2>/dev/null || true
+  )"
+  if [[ "$identifier" == com.mitchellh.ghostty* ]]; then
+    echo "The packaged app retains an upstream bundle ID: $identifier" >&2
+    exit 1
+  fi
+done < <(find "$mount_dir/GTTY.app" -type f -name Info.plist -print0)
 codesign --verify --deep --strict "$mount_dir/GTTY.app"
 test -s "$artifact"
 
