@@ -11,7 +11,6 @@ dist_dir="$2"
 
 expected=(
   "GTTY-${version}-macOS-arm64-unsigned.dmg"
-  "GTTY-${version}-macOS-x86_64-unsigned.dmg"
   "gtty_${version}_amd64.deb"
   "gtty_${version}_arm64.deb"
 )

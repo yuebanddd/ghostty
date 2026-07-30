@@ -13,7 +13,7 @@ gttyd_binary="$4"
 output_dir="$5"
 
 case "$architecture" in
-  arm64 | x86_64) ;;
+  arm64) ;;
   *)
     echo "Unsupported macOS architecture: $architecture" >&2
     exit 1
