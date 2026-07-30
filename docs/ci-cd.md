@@ -42,19 +42,19 @@ formatting, lint, unit, and integration checks run for the GTTY workspace.
 - a `gtty-v*` tag is pushed; or
 - a maintainer starts a manual dispatch.
 
-Every pull request builds and verifies all four installers using an internal
+Every pull request builds and verifies all three installers using an internal
 `0.0.0-pr.<number>` version. Running the installer gate for every PR prevents
 new build inputs from bypassing packaging checks as the upstream source tree
 evolves. It uploads short-lived workflow artifacts but cannot create a GitHub
 Release.
 
-A manual dispatch from `release` is a dry run: it builds the same verified
+A manual dispatch from `release` is a dry run: it builds the same three verified
 installers as a tagged release and exposes them as downloadable workflow
 artifacts, but does not create a GitHub Release. A valid semantic tag such as
 `gtty-v0.1.0` must point to a commit contained in `release` and builds:
 
 - Ubuntu 24.04-compatible Debian packages for amd64 and arm64;
-- macOS disk images for Apple Silicon and Intel;
+- a macOS disk image for Apple Silicon (arm64) only;
 - `SHA256SUMS`.
 
 The Debian package installs the terminal as `ghostty`, adds `gtty` as the GTTY
@@ -91,7 +91,7 @@ upstream release credential is used.
 3. Download and install the workflow artifacts on the target machines if an
    additional hands-on check is needed.
 4. Create and push `gtty-v<version>` at the same `release` commit.
-5. Wait for all four installers to pass their installation checks.
+5. Wait for all three installers to pass their installation checks.
 6. Download the `.dmg` or `.deb` from GitHub Releases and verify it against
    `SHA256SUMS`.
 
