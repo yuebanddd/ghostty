@@ -328,17 +328,9 @@ jobs:
           retention-days: 14
 
   macos:
-    name: macOS ${{ matrix.arch }}
+    name: macOS arm64
     needs: policy
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-26
-            arch: arm64
-          - runner: macos-26-intel
-            arch: x86_64
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-26
     timeout-minutes: 90
     steps:
       - name: Check out GTTY
@@ -364,14 +356,14 @@ jobs:
         run: |
           bash scripts/release/package-macos-dmg.sh \
             "$GTTY_VERSION" \
-            "${{ matrix.arch }}" \
+            "arm64" \
             zig-out/Ghostty.app \
             target/release/gttyd \
             dist
       - name: Upload macOS installer
         uses: actions/upload-artifact@v6
         with:
-          name: gtty-release-macos-${{ matrix.arch }}
+          name: gtty-release-macos-arm64
           path: dist/*.dmg
           if-no-files-found: error
           retention-days: 14
@@ -422,7 +414,7 @@ jobs:
             This release contains directly installable, unsigned GTTY preview builds.
 
             macOS:
-            1. Download the `.dmg` matching your Mac.
+            1. On an Apple Silicon Mac (M-series), download the `macOS-arm64` `.dmg`.
             2. Open it and drag `GTTY.app` to `Applications`.
             3. Because this preview is not notarized, use Control-click → Open on first launch.
 
